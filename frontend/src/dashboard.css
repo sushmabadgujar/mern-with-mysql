@@ -1,0 +1,47 @@
+.dashboard-card {
+  border-radius: 14px;
+  transition: all 0.25s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.dashboard-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: #0d6efd;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+}
+
+.dashboard-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 22px;
+}
+
+.card {
+  border-radius: 14px;
+}
+
+.progress {
+  border-radius: 10px;
+  background-color: #f1f3f5;
+}
+
+.progress-bar {
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}

@@ -1,0 +1,19 @@
+body {
+  background: #f8f9fa;
+}
+
+.card {
+  border: 0;
+}
+
+.search-box {
+  max-width: 320px;
+}
+
+th[role="button"] {
+  user-select: none;
+}
+
+th[role="button"]:hover {
+  background: #e9ecef;
+}
