@@ -14,6 +14,7 @@ const errorHandler = require("./middleware/errorHandler");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const productRoutes = require("./routes/productRoutes");
+const cartRoutes = require("./routes/cartRoutes");
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use(
 app.use(express.json());
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 app.get("/api/health", async (req, res) => {
   try {
     await sequelize.authenticate();
@@ -50,6 +52,8 @@ app.use("/api/dashboard", dashboardRoutes);
 
 app.use("/api/categories", categoryRoutes);
 app.use("/api/products", productRoutes);
+
+app.use("/api/cart", cartRoutes);
 
 app.use(errorHandler);
 

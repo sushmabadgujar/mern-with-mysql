@@ -11,6 +11,9 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ChangePassword from "./pages/ChangePassword";
 import Dashboard from "./pages/Dashboard";
+import ProductManagement from "./components/ProductManagement";
+import CategoryManagement from "./components/CategoryManagement";
+import CartManagement from "./components/CartManagement";
 const App = () => {
   return (
     <>
@@ -28,6 +31,10 @@ const App = () => {
           <Route element={<ProtectedRoute />}>
             <Route path="/users" element={<Users />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/products" element={<ProductManagement />} />
+            <Route path="/categories" element={<CategoryManagement />} />
+            <Route path="/cart" element={<CartManagement />} />
+            <Route path="/wishlist" element={<CategoryManagement />} />
             <Route path="/users/edit/:id" element={<EditUser />} />
             <Route
               path="/dashboard"

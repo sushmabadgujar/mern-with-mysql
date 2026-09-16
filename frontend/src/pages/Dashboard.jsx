@@ -11,9 +11,7 @@ import {
 import { getDashboardStats } from "../api/dashboardApi";
 import Alert from "../components/Alert";
 import "./../dashboard.css";
-import ProductManagement from "../components/ProductManagement";
 import { Link } from "react-router-dom";
-import CategoryManagement from "../components/CategoryManagement";
 const Dashboard = () => {
     const [stats, setStats] = useState({
         totalUsers: 0,
@@ -468,9 +466,6 @@ const Dashboard = () => {
 
                     </div>
                 </div>
-                <CategoryManagement />
-
-                <ProductManagement />
             </div>
         </>
     );

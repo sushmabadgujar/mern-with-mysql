@@ -21,11 +21,16 @@ const Navbar = () => {
         <div className="navbar-nav ms-auto align-items-center">
           {user && (
             <>
-             {user.role === "admin" && (
+             {user.role === "admin" && (<>
                 <Link className="nav-link" to="/users">
                   Users
                 </Link>
-              )}
+                <Link className="nav-link" to="/categories"> Category </Link> 
+                <Link className="nav-link" to="/products"> Product </Link> 
+                <Link className="nav-link" to="/cart"> Cart </Link>
+                <Link className="nav-link" to="/wishlist"> Wishlist </Link> 
+                <Link className="nav-link" to="/orders"> Order Management </Link>
+              </>)}
               <Link className="nav-link" to="/profile">Profile</Link>
               <span className="text-white small mx-3">
                 Hi, {user.name}
