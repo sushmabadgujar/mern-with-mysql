@@ -3,8 +3,9 @@ const Product = require("../models/Product");
 const Category = require("../models/Category");
 const fs = require("fs");
 const path = require("path");
+const createActivityLog = require("../config/createActivityLog");
 const getProducts = async (req, res, next) => {
-   try {
+  try {
     let {
       page = 1,
       limit = 5,
@@ -115,7 +116,14 @@ const createProduct = async (req, res, next) => {
         ? `/uploads/products/${req.file.filename}`
         : null,
     });
-
+    await createActivityLog({
+      userId: req.user.id,
+      action: "CREATE",
+      module: "PRODUCT",
+      description: `Created product "${product.name}".`,
+      referenceId: product.id,
+      req,
+    });
     return res.status(201).json({
       message: "Product created successfully.",
       product,
@@ -185,7 +193,14 @@ const updateProduct = async (req, res, next) => {
     product.categoryId = categoryId;
 
     await product.save();
-
+     await createActivityLog({
+      userId: req.user.id,
+      action: "UPDATE",
+      module: "PRODUCT",
+      description: `Updated product "${product.name}".`,
+      referenceId: product.id,
+      req,
+    });
     return res.json({
       message: "Product updated successfully.",
       product,
@@ -233,7 +248,31 @@ const deleteProduct = async (req, res, next) => {
     next(error);
   }
 };
+const getProductById = async (req, res) => {
+  try {
+    const { id } = req.params;
 
+    const product = await Product.findByPk(id);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "Product not found.",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Product fetched successfully.",
+      data: product,
+    });
+  } catch (error) {
+    console.error("Get Product By ID Error:", error);
+
+    return res.status(500).json({
+      message: "Unable to fetch product.",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
-getProducts,deleteProduct,createProduct,updateProduct
+  getProducts, deleteProduct, createProduct, updateProduct, getProductById
 };

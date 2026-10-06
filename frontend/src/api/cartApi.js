@@ -1,14 +1,26 @@
 import api from "./axios";
 
-export const createCart = (data) => {
+
+// USER CART
+
+export const addToCart = (data) => {
   return api.post("/cart", data);
 };
 
-// export const getCarts = (params) => {
-//   return api.get("/cart", {
-//     params,
-//   });
-// };
+export const getMyCart = () => {
+  return api.get("/cart/my-cart");
+};
+
+export const updateCartItem = (id, data) => {
+  return api.put(`/cart/item/${id}`, data);
+};
+
+export const removeCartItem = (id) => {
+  return api.delete(`/cart/item/${id}`);
+};
+
+
+// ADMIN CART
 
 export const getAllCarts = (params) => {
   return api.get("/cart", {
@@ -21,9 +33,8 @@ export const getCartById = (id) => {
 };
 
 export const updateCart = (id, data) => {
-  return api.put(`/carts/${id}`, data);
+  return api.put(`/cart/${id}`, data);
 };
-
 export const deleteCart = (id) => {
-  return api.delete(`/carts/${id}`);
+    return api.delete(`/cart/${id}`);
 };

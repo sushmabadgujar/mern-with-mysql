@@ -15,3 +15,4 @@ export const updateProduct = (id, data) => {
 export const deleteProduct = (id) => {
   return api.delete(`/products/${id}`);
 };
+export const getProductById = (id) => { return api.get(`/products/${id}`); };

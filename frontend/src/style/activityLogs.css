@@ -1,0 +1,126 @@
+.zn-activity-page {
+    min-height: 70vh;
+}
+
+.zn-activity-page .card {
+    border: none;
+    border-radius: 10px;
+}
+
+.zn-activity-page h3 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #212529;
+}
+
+.zn-activity-page .form-label {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+.zn-activity-page .form-control,
+.zn-activity-page .form-select {
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.zn-activity-page .table {
+    margin-bottom: 0;
+}
+
+.zn-activity-page .table th {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.zn-activity-page .table td {
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+.zn-activity-description {
+    min-width: 220px;
+    max-width: 350px;
+    line-height: 1.5;
+}
+
+.zn-activity-page .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 6px 9px;
+}
+
+.zn-activity-empty-icon {
+    font-size: 40px;
+    color: #adb5bd;
+}
+
+.zn-page-limit {
+    width: 75px;
+}
+
+.zn-activity-page .pagination .page-link {
+    font-size: 13px;
+    min-width: 38px;
+    text-align: center;
+}
+
+.zn-activity-page .btn {
+    font-size: 14px;
+}
+
+.zn-activity-page .btn-danger {
+    white-space: nowrap;
+}
+
+@media (max-width: 992px) {
+    .zn-activity-description {
+        min-width: 200px;
+    }
+
+    .zn-activity-page .table {
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 768px) {
+    .zn-activity-page {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .zn-activity-page h3 {
+        font-size: 20px;
+    }
+
+    .zn-activity-description {
+        min-width: 180px;
+    }
+
+    .zn-activity-page .pagination {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+    }
+}
+
+@media (max-width: 576px) {
+    .zn-activity-page {
+        padding-top: 15px !important;
+    }
+
+    .zn-activity-page .card-body {
+        padding: 15px;
+    }
+
+    .zn-activity-page .table th,
+    .zn-activity-page .table td {
+        font-size: 12px;
+    }
+
+    .zn-activity-page .btn-danger {
+        width: 100%;
+    }
+}

@@ -1,0 +1,60 @@
+.order-management-page {
+    width: 100%;
+}
+
+.order-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.order-search-box svg {
+    position: absolute;
+    left: 14px;
+    z-index: 2;
+    color: #6c757d;
+}
+
+.order-search-box input {
+    padding-left: 40px;
+}
+
+.order-management-page .table th {
+    white-space: nowrap;
+    font-size: 14px;
+}
+
+.order-management-page .table td {
+    font-size: 14px;
+}
+
+.order-management-page .badge {
+    font-weight: 500;
+    padding: 6px 10px;
+}
+
+.order-detail-modal .modal-content {
+    border: 0;
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.order-detail-modal .modal-header {
+    padding: 20px 24px;
+}
+
+.order-detail-modal .modal-body {
+    padding: 24px;
+}
+
+.order-detail-section {
+    margin-bottom: 10px;
+}
+
+.order-management-page .card {
+    border-radius: 14px;
+}
+
+.order-management-page .btn {
+    border-radius: 7px;
+}

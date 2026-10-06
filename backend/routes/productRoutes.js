@@ -7,6 +7,7 @@ const {
     createProduct,
     updateProduct,
     deleteProduct,
+    getProductById
 } = require("../controllers/productController");
 
 const upload = require("../middleware/productUpload");
@@ -248,5 +249,5 @@ router.delete(
     deleteProduct
 );
 
-
+router.get("/:id", getProductById);
 module.exports = router;

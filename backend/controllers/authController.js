@@ -1,370 +1,522 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+
 const User = require("../models/User");
-// const crypto = require("crypto");
-const transporter = require("../config/mailer");
-const fs = require("fs");
+const createActivityLog = require("../config/createActivityLog");
+const env = require("../config/env");
+
+const AppError = require("../utils/AppError");
+const asyncHandler = require("../utils/asyncHandler");
+
+const {
+    sendSuccess,
+} = require("../utils/apiResponse");
+
+const {
+    sendWelcomeEmail,
+    sendPasswordResetEmail,
+} = require("../utils/emailService");
+
+// ==========================================
+// CREATE JWT TOKEN
+// ==========================================
+
 const createToken = (user) =>
-  jwt.sign(
-    { id: user.id, email: user.email },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || "1d" }
-  );
+    jwt.sign(
+        {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+        },
+        env.jwt.secret,
+        {
+            expiresIn: env.jwt.expiresIn,
+        }
+    );
+
+// ==========================================
+// SAFE USER
+// ==========================================
 
 const safeUser = (user) => ({
-  id: user.id,
-  name: user.name,
-  email: user.email,
-  mobileNumber: user.mobileNumber,
-  status: user.status,
-  role: user.role,
-  createdAt: user.createdAt,
-   profileImage: user.profileImage,
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    mobileNumber: user.mobileNumber,
+    status: user.status,
+    role: user.role,
+    createdAt: user.createdAt,
+    profileImage: user.profileImage,
 });
 
-const register = async (req, res, next) => {
-  try {
-    const { name, email, password, mobileNumber, status } = req.body;
+// ==========================================
+// REGISTER
+// ==========================================
 
-    const existingUser = await User.findOne({ where: { email } });
+const register = asyncHandler(
+    async (req, res) => {
+        const {
+            name,
+            email,
+            password,
+            mobileNumber,
+            status,
+        } = req.body;
 
-    if (existingUser) {
-      return res.status(409).json({ message: "Email already exists." });
+        if (!name || !email || !password) {
+            throw new AppError(
+                "Name, email and password are required.",
+                400
+            );
+        }
+
+        const existingUser =
+            await User.findOne({
+                where: { email },
+            });
+
+        if (existingUser) {
+            throw new AppError(
+                "Email already exists.",
+                409
+            );
+        }
+
+        const hashedPassword =
+            await bcrypt.hash(
+                password,
+                12
+            );
+
+        const user =
+            await User.create({
+                name,
+                email,
+                password: hashedPassword,
+                mobileNumber,
+                status: status || "active",
+                role: "user",
+            });
+
+        await sendWelcomeEmail(user);
+
+        const token =
+            createToken(user);
+
+        return sendSuccess(
+            res,
+            {
+                statusCode: 201,
+                message:
+                    "Registration successful.",
+                data: {
+                    token,
+                    user: safeUser(user),
+                },
+            }
+        );
     }
+);
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+// ==========================================
+// LOGIN
+// ==========================================
 
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      mobileNumber,
-      status: status || "active"
-    });
+const login = asyncHandler(
+    async (req, res) => {
+        const {
+            email,
+            password,
+        } = req.body;
 
-    const token = createToken(user);
+        if (!email || !password) {
+            throw new AppError(
+                "Email and password are required.",
+                400
+            );
+        }
 
-    return res.status(201).json({
-      message: "Registration successful.",
-      token,
-      user: safeUser(user)
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+        const user =
+            await User.findOne({
+                where: { email },
+            });
 
-const login = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
+        if (!user) {
+            throw new AppError(
+                "Invalid email or password.",
+                401
+            );
+        }
 
-    const user = await User.findOne({ where: { email } });
+        if (user.status !== "active") {
+            throw new AppError(
+                "Your account is inactive.",
+                403
+            );
+        }
 
-    if (!user) {
-      return res.status(401).json({ message: "Invalid email or password." });
+        const isPasswordValid =
+            await bcrypt.compare(
+                password,
+                user.password
+            );
+
+        if (!isPasswordValid) {
+            throw new AppError(
+                "Invalid email or password.",
+                401
+            );
+        }
+
+        const token =
+            createToken(user);
+
+        await createActivityLog({
+            userId: user.id,
+            action: "LOGIN",
+            module: "USER",
+            description:
+                `Login User "${user.name}".`,
+            referenceId: user.id,
+            req,
+            token
+        });
+
+        return sendSuccess(
+            res,
+            {
+                statusCode: 200,
+                message:
+                    "Login successful.",
+                data: {
+                    token,
+                    user: safeUser(user),
+                },
+            }
+        );
     }
+);
 
-    if (user.status !== "active") {
-      return res.status(403).json({ message: "Your account is inactive." });
+// ==========================================
+// GET LOGGED-IN USER
+// ==========================================
+
+const me = asyncHandler(
+    async (req, res) => {
+        const user =
+            await User.findByPk(
+                req.user.id
+            );
+
+        if (!user) {
+            throw new AppError(
+                "User not found.",
+                404
+            );
+        }
+
+        return sendSuccess(
+            res,
+            {
+                statusCode: 200,
+                message:
+                    "User fetched successfully.",
+                data: {
+                    user: safeUser(user),
+                },
+            }
+        );
     }
+);
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+// ==========================================
+// FORGOT PASSWORD
+// ==========================================
 
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: "Invalid email or password." });
-    }
+const forgotPassword =
+    asyncHandler(
+        async (req, res) => {
+            const { email } =
+                req.body;
 
-    const token = createToken(user);
+            if (!email) {
+                throw new AppError(
+                    "Email is required.",
+                    400
+                );
+            }
 
-    return res.json({
-      message: "Login successful.",
-      token,
-      user: safeUser(user)
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+            const user =
+                await User.findOne({
+                    where: { email },
+                });
 
-const me = async (req, res, next) => {
-  try {
-    const user = await User.findByPk(req.user.id);
+            if (!user) {
+                return sendSuccess(
+                    res,
+                    {
+                        statusCode: 200,
+                        message:
+                            "If an account exists with this email, a reset link has been sent.",
+                        data: null,
+                    }
+                );
+            }
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found." });
-    }
+            const resetToken =
+                crypto
+                    .randomBytes(32)
+                    .toString("hex");
 
-    return res.json({ user: safeUser(user) });
-  } catch (error) {
-    next(error);
-  }
-};
-const forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
+            const hashedToken =
+                crypto
+                    .createHash("sha256")
+                    .update(resetToken)
+                    .digest("hex");
 
-    if (!email) {
-      return res.status(400).json({
-        message: "Email is required.",
-      });
-    }
+            const expiry =
+                new Date(
+                    Date.now() +
+                        15 * 60 * 1000
+                );
 
-    const user = await User.findOne({
-      where: { email },
-    });
+            await user.update({
+                resetPasswordToken:
+                    hashedToken,
+                resetPasswordExpires:
+                    expiry,
+            });
 
-    // Security: user exist karta hai ya nahi,
-    // exact information expose mat karo.
-    if (!user) {
-      return res.status(200).json({
-        message:
-          "If an account exists with this email, a reset link has been sent.",
-      });
-    }
+            await sendPasswordResetEmail(
+                user,
+                resetToken
+            );
 
-    // Secure random token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-
-    // DB mein plain token nahi,
-    // token ka hash store karo
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(resetToken)
-      .digest("hex");
-
-    // Token 15 minutes valid
-    const expiry = new Date(Date.now() + 15 * 60 * 1000);
-
-    await user.update({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpires: expiry,
-    });
-
-    const resetUrl =
-      `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
-
-    await transporter.sendMail({
-      from: `"My App" <${process.env.MAIL_USER}>`,
-      to: user.email,
-      subject: "Reset Your Password",
-      html: `
-        <div style="font-family: Arial; padding: 20px;">
-          <h2>Password Reset Request</h2>
-
-          <p>Hello ${user.name},</p>
-
-          <p>
-            We received a request to reset your password.
-          </p>
-
-          <p>
-            Click the button below to create a new password.
-          </p>
-
-          <a
-            href="${resetUrl}"
-            style="
-              display:inline-block;
-              padding:12px 20px;
-              background:#0d6efd;
-              color:white;
-              text-decoration:none;
-              border-radius:5px;
-            "
-          >
-            Reset Password
-          </a>
-
-          <p style="margin-top:20px;">
-            This link will expire in 15 minutes.
-          </p>
-
-          <p>
-            If you did not request a password reset,
-            you can safely ignore this email.
-          </p>
-        </div>
-      `,
-    });
-
-    return res.status(200).json({
-      message:
-        "If an account exists with this email, a reset link has been sent.",
-    });
-  } catch (error) {
-    console.error("Forgot password error:", error);
-
-    return res.status(500).json({
-      message: "Unable to process password reset request.",
-    });
-  }
-};
-const resetPassword = async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { password } = req.body;
-
-    if (!password) {
-      return res.status(400).json({
-        message: "Password is required.",
-      });
-    }
-
-    // Password validation
-    if (
-      password.length < 8 ||
-      !/[A-Z]/.test(password) ||
-      !/[a-z]/.test(password) ||
-      !/[0-9]/.test(password)
-    ) {
-      return res.status(422).json({
-        message:
-          "Password must contain at least 8 characters, uppercase, lowercase and number.",
-      });
-    }
-
-    // Incoming token ko hash karo
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(token)
-      .digest("hex");
-
-    const user = await User.findOne({
-      where: {
-        resetPasswordToken: hashedToken,
-      },
-    });
-
-    if (!user) {
-      return res.status(400).json({
-        message: "Invalid or expired reset token.",
-      });
-    }
-
-    // Expiry check
-    if (
-      !user.resetPasswordExpires ||
-      new Date() > new Date(user.resetPasswordExpires)
-    ) {
-      return res.status(400).json({
-        message: "Reset token has expired.",
-      });
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    await user.update({
-      password: hashedPassword,
-
-      // Token ko invalidate kar do
-      resetPasswordToken: null,
-      resetPasswordExpires: null,
-    });
-
-    return res.status(200).json({
-      message: "Password reset successfully. You can now login.",
-    });
-  } catch (error) {
-    console.error("Reset password error:", error);
-
-    return res.status(500).json({
-      message: "Unable to reset password.",
-    });
-  }
-};
-
-const changePassword = async (req, res) => {
-  try {
-    const {
-      currentPassword,
-      newPassword,
-      confirmPassword,
-    } = req.body;
-
-    // 1. Required fields validation
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      return res.status(400).json({
-        message:
-          "Current password, new password and confirm password are required.",
-      });
-    }
-
-    // 2. New password confirmation
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({
-        message: "New password and confirm password do not match.",
-      });
-    }
-
-    // 3. Password strength validation
-    if (
-      newPassword.length < 8 ||
-      !/[A-Z]/.test(newPassword) ||
-      !/[a-z]/.test(newPassword) ||
-      !/[0-9]/.test(newPassword)
-    ) {
-      return res.status(422).json({
-        message:
-          "Password must contain at least 8 characters, uppercase, lowercase and number.",
-      });
-    }
-
-    // 4. Get logged-in user's ID from JWT middleware
-    const user = await User.findByPk(req.user.id);
-
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found.",
-      });
-    }
-
-    // 5. Verify current password
-    const isPasswordValid = await bcrypt.compare(
-      currentPassword,
-      user.password
+            return sendSuccess(
+                res,
+                {
+                    statusCode: 200,
+                    message:
+                        "If an account exists with this email, a reset link has been sent.",
+                    data: null,
+                }
+            );
+        }
     );
 
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        message: "Current password is incorrect.",
-      });
-    }
+// ==========================================
+// RESET PASSWORD
+// ==========================================
 
-    // 6. Prevent same password
-    const isSamePassword = await bcrypt.compare(
-      newPassword,
-      user.password
+const resetPassword =
+    asyncHandler(
+        async (req, res) => {
+            const { token } =
+                req.params;
+
+            const { password } =
+                req.body;
+
+            if (!password) {
+                throw new AppError(
+                    "Password is required.",
+                    400
+                );
+            }
+
+            if (
+                password.length < 8 ||
+                !/[A-Z]/.test(password) ||
+                !/[a-z]/.test(password) ||
+                !/[0-9]/.test(password)
+            ) {
+                throw new AppError(
+                    "Password must contain at least 8 characters, uppercase, lowercase and number.",
+                    422
+                );
+            }
+
+            const hashedToken =
+                crypto
+                    .createHash("sha256")
+                    .update(token)
+                    .digest("hex");
+
+            const user =
+                await User.findOne({
+                    where: {
+                        resetPasswordToken:
+                            hashedToken,
+                    },
+                });
+
+            if (!user) {
+                throw new AppError(
+                    "Invalid or expired reset token.",
+                    400
+                );
+            }
+
+            if (
+                !user.resetPasswordExpires ||
+                new Date() >
+                    new Date(
+                        user.resetPasswordExpires
+                    )
+            ) {
+                throw new AppError(
+                    "Reset token has expired.",
+                    400
+                );
+            }
+
+            const hashedPassword =
+                await bcrypt.hash(
+                    password,
+                    12
+                );
+
+            await user.update({
+                password: hashedPassword,
+                resetPasswordToken: null,
+                resetPasswordExpires: null,
+            });
+
+            return sendSuccess(
+                res,
+                {
+                    statusCode: 200,
+                    message:
+                        "Password reset successfully. You can now login.",
+                    data: null,
+                }
+            );
+        }
     );
 
-    if (isSamePassword) {
-      return res.status(400).json({
-        message:
-          "New password must be different from current password.",
-      });
-    }
+// ==========================================
+// CHANGE PASSWORD
+// ==========================================
 
-    // 7. Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 12);
+const changePassword =
+    asyncHandler(
+        async (req, res) => {
+            const {
+                currentPassword,
+                newPassword,
+                confirmPassword,
+            } = req.body;
 
-    // 8. Update password
-    await user.update({
-      password: hashedPassword,
-    });
+            if (
+                !currentPassword ||
+                !newPassword ||
+                !confirmPassword
+            ) {
+                throw new AppError(
+                    "Current password, new password and confirm password are required.",
+                    400
+                );
+            }
 
-    return res.status(200).json({
-      message: "Password changed successfully.",
-    });
-  } catch (error) {
-    console.error("Change password error:", error);
+            if (
+                newPassword !==
+                confirmPassword
+            ) {
+                throw new AppError(
+                    "New password and confirm password do not match.",
+                    400
+                );
+            }
 
-    return res.status(500).json({
-      message: "Unable to change password.",
-    });
-  }
+            if (
+                newPassword.length < 8 ||
+                !/[A-Z]/.test(newPassword) ||
+                !/[a-z]/.test(newPassword) ||
+                !/[0-9]/.test(newPassword)
+            ) {
+                throw new AppError(
+                    "Password must contain at least 8 characters, uppercase, lowercase and number.",
+                    422
+                );
+            }
+
+            const user =
+                await User.findByPk(
+                    req.user.id
+                );
+
+            if (!user) {
+                throw new AppError(
+                    "User not found.",
+                    404
+                );
+            }
+
+            const isPasswordValid =
+                await bcrypt.compare(
+                    currentPassword,
+                    user.password
+                );
+
+            if (!isPasswordValid) {
+                throw new AppError(
+                    "Current password is incorrect.",
+                    401
+                );
+            }
+
+            const isSamePassword =
+                await bcrypt.compare(
+                    newPassword,
+                    user.password
+                );
+
+            if (isSamePassword) {
+                throw new AppError(
+                    "New password must be different from current password.",
+                    400
+                );
+            }
+
+            const hashedPassword =
+                await bcrypt.hash(
+                    newPassword,
+                    12
+                );
+
+            await user.update({
+                password:
+                    hashedPassword,
+            });
+
+            await createActivityLog({
+                userId: user.id,
+                action: "PASSWORD CHANGE",
+                module: "USER",
+                description:
+                    `Change password of User "${user.name}".`,
+                referenceId: user.id,
+                req,
+            });
+
+            return sendSuccess(
+                res,
+                {
+                    statusCode: 200,
+                    message:
+                        "Password changed successfully.",
+                    data: null,
+                }
+            );
+        }
+    );
+
+module.exports = {
+    register,
+    login,
+    me,
+    forgotPassword,
+    resetPassword,
+    changePassword,
 };
-
-
-module.exports = { register, login, me,
-  forgotPassword,
-  resetPassword, changePassword };

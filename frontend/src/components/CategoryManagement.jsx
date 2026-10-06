@@ -22,36 +22,35 @@ const CategoryManagement = () => {
         totalItems: 0,
     });
 
-   const fetchCategories = async () => {
-    try {
-        setLoading(true);
+    const fetchCategories = async () => {
+        try {
+            setLoading(true);
 
-        const response = await getCategories({
-            page: pagination.page,
-            limit: pagination.limit,
-            search,
-            sortBy: "id",
-            sortOrder: "DESC",
-        });
+            const response = await getCategories({
+                page: pagination.page,
+                limit: pagination.limit,
+                search,
+                sortBy: "id",
+                sortOrder: "DESC",
+            });
+            const data = response.data;
 
-        const data = response.data;
+            console.log("Category Response:", data);
 
-        console.log("Category Response:", data);
+            setCategories(data.categories || []);
 
-        setCategories(data.categories || []);
+            setPagination((prev) => ({
+                ...prev,
+                totalPages: data.pagination?.totalPages || 1,
+                totalItems: data.pagination?.total || 0,
+            }));
 
-        setPagination((prev) => ({
-            ...prev,
-            totalPages: data.pagination?.totalPages || 1,
-            totalItems: data.pagination?.total || 0,
-        }));
-
-    } catch (error) {
-        console.log(error.response);
-    } finally {
-        setLoading(false);
-    }
-};
+        } catch (error) {
+            console.log(error.response);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         fetchCategories();
@@ -59,8 +58,6 @@ const CategoryManagement = () => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-
-
         setForm((prev) => ({
             ...prev,
             [name]: value,
@@ -78,20 +75,14 @@ const CategoryManagement = () => {
             name: "",
             description: "",
         });
-
-
         setEditingId(null);
-
-
     };
     const validateForm = () => {
         const newErrors = {};
-
         const name = form.name.trim();
         const description = form.description.trim();
 
         if (!name) {
-
             newErrors.name = "Category name is required.";
         } else if (name.length < 2) {
             newErrors.name = "Category name must be at least 2 characters.";

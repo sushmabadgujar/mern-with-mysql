@@ -99,7 +99,14 @@ const createUser = async (req, res, next) => {
       mobileNumber,
       status: status || "active"
     });
-
+    await createActivityLog({
+          userId: req.user.id,
+          action: "CREATE",
+          module: "USER",
+          description: `Register User "${user.name}".`,
+          referenceId: user.id,
+          req,
+        });
     return res.status(201).json({
       message: "User created successfully.",
       user: safeUser(user)

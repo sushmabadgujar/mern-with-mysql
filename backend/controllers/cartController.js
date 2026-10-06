@@ -1,4 +1,5 @@
-const { Cart, CartItem, Product } = require("../models");
+const {User, Cart, CartItem, Product,Category } = require("../models");
+const { Op } = require("sequelize");
 const addToCart = async (req, res) => {
     try {
         const userId = req.user.id;
@@ -75,7 +76,6 @@ const addToCart = async (req, res) => {
 const getCart = async (req, res) => {
     try {
         const userId = req.user.id;
-        console.log("user",userId);
         const cart = await Cart.findOne({
             where: {
                 userId,
@@ -221,8 +221,65 @@ const clearCart = async (req, res) => {
 };
 const getAllCarts = async (req, res) => {
     try {
-        const carts = await Cart.findAll({
+        let {
+            page = 1,
+            limit = 5,
+            search = "",
+            sortBy = "id",
+            sortOrder = "DESC",
+        } = req.query;
+
+        page = Number(page);
+        limit = Number(limit);
+
+        const offset = (page - 1) * limit;
+
+        const whereCondition = {};
+
+        // Search
+        if (search.trim()) {
+            const searchValue = search.trim();
+
+            whereCondition[Op.or] = [
+                {
+                    "$user.name$": {
+                        [Op.like]: `%${searchValue}%`,
+                    },
+                },
+                {
+                    "$user.email$": {
+                        [Op.like]: `%${searchValue}%`,
+                    },
+                },
+                {
+                    "$items.product.name$": {
+                        [Op.like]: `%${searchValue}%`,
+                    },
+                },
+                {
+                    "$items.quantity$": {
+                        [Op.like]: `%${searchValue}%`,
+                    },
+                },
+            ];
+        }
+
+        const { count, rows } = await Cart.findAndCountAll({
+            where: whereCondition,
+
             include: [
+                {
+                    model: User,
+                    as: "user",
+                    attributes: [
+                        "id",
+                        "name",
+                        "email",
+                        "mobileNumber",
+                        "role",
+                        "status",
+                    ],
+                },
                 {
                     model: CartItem,
                     as: "items",
@@ -234,15 +291,23 @@ const getAllCarts = async (req, res) => {
                     ],
                 },
             ],
-            order: [["id", "DESC"]],
+
+            limit,
+            offset,
+
+            order: [[sortBy, sortOrder]],
+
+            distinct: true,
         });
 
-        const data = carts.map((cart) => {
+        // Format cart data
+        const data = rows.map((cart) => {
             let total = 0;
 
             const items = cart.items.map((item) => {
                 const price = Number(item.product?.price) || 0;
                 const quantity = Number(item.quantity) || 0;
+
                 const subtotal = price * quantity;
 
                 total += subtotal;
@@ -260,6 +325,18 @@ const getAllCarts = async (req, res) => {
             return {
                 cartId: cart.id,
                 userId: cart.userId,
+
+                user: cart.user
+                    ? {
+                          id: cart.user.id,
+                          name: cart.user.name,
+                          email: cart.user.email,
+                          mobileNumber: cart.user.mobileNumber,
+                          role: cart.user.role,
+                          status: cart.user.status,
+                      }
+                    : null,
+
                 items,
                 total,
                 createdAt: cart.createdAt,
@@ -267,11 +344,183 @@ const getAllCarts = async (req, res) => {
             };
         });
 
+        console.log(
+            "Final Cart Data:",
+            JSON.stringify(data, null, 2)
+        );
+
         return res.status(200).json({
             carts: data,
+
+            pagination: {
+                total: count,
+                page,
+                limit,
+                totalPages: Math.ceil(count / limit),
+            },
         });
     } catch (error) {
         console.error("Get All Carts Error:", error);
+
+        return res.status(500).json({
+            message: "Internal server error",
+        });
+    }
+};
+
+const getMyCart = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const cart = await Cart.findOne({
+      where: {
+        userId,
+      },
+
+      include: [
+        {
+          model: CartItem,
+          as: "items",
+
+          include: [
+            {
+              model: Product,
+              as: "product",
+
+              include: [
+                {
+                  model: Category,
+                  as: "category",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!cart) {
+      return res.status(200).json({
+        cartId: null,
+        items: [],
+        total: 0,
+      });
+    }
+
+    let total = 0;
+
+    const items = cart.items.map((item) => {
+      const price = Number(item.product.price);
+      const subtotal = price * item.quantity;
+
+      total += subtotal;
+
+      return {
+        id: item.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        product: item.product,
+        subtotal,
+      };
+    });
+
+    return res.status(200).json({
+      cartId: cart.id,
+      items,
+      total,
+    });
+  } catch (error) {
+    console.error("Get cart error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+const removeCartItem = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { id } = req.params;
+
+    const cart = await Cart.findOne({
+      where: {
+        userId,
+      },
+    });
+
+    if (!cart) {
+      return res.status(404).json({
+        message: "Cart not found",
+      });
+    }
+
+    const cartItem = await CartItem.findOne({
+      where: {
+        id,
+        cartId: cart.id,
+      },
+    });
+
+    if (!cartItem) {
+      return res.status(404).json({
+        message: "Cart item not found",
+      });
+    }
+
+    await cartItem.destroy();
+    const remainingItems = await CartItem.count({
+            where: {
+                cartId: cart.id,
+            },
+        });
+
+        if (remainingItems === 0) {
+            await cart.destroy();
+
+            return res.status(200).json({
+                message: "Product removed and cart deleted",
+            });
+        }
+
+    return res.status(200).json({
+      message: "Product removed from cart",
+    });
+  } catch (error) {
+    console.error("Remove cart item error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+const deleteCart = async (req, res) => {
+    try {
+        const { cartId } = req.params;
+
+        const cart = await Cart.findByPk(cartId);
+
+        if (!cart) {
+            return res.status(404).json({
+                message: "Cart not found",
+            });
+        }
+
+        await CartItem.destroy({
+            where: {
+                cartId: cart.id,
+            },
+        });
+
+        await cart.destroy();
+
+        return res.status(200).json({
+            message: "Cart deleted successfully",
+        });
+    } catch (error) {
+        console.error("Delete Cart Error:", error);
 
         return res.status(500).json({
             message: "Internal server error",
@@ -283,6 +532,7 @@ module.exports = {
     getCart,
     updateCartItem,
     // removeFromCart,
+    removeCartItem,
     getAllCarts,
-    clearCart,
+    clearCart,getMyCart,deleteCart
 };

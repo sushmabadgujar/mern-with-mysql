@@ -10,10 +10,3 @@ export const updateProfile = (data) => api.put("/profile", data);
 export const changePassword = (data) => {
   return api.put("/auth/change-password", data);
 };
-// export const uploadProfileImage = (data) => {
-//   return api.put("/auth/profile/image", data, {
-//     headers: {
-//       "Content-Type": "multipart/form-data",
-//     },
-//   });
-// };
